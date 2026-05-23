@@ -1,11 +1,31 @@
 export default async function handler(req, res) {
   const IG_USER_ID = process.env.IG_USER_ID;
   const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN;
-  const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
 
-  res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+  const allowedOriginsRaw =
+    process.env.ALLOWED_ORIGINS ||
+    process.env.ALLOWED_ORIGIN ||
+    "*";
+
+  const requestOrigin = req.headers.origin || "";
+  const allowedOrigins = allowedOriginsRaw
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  const allowAll = allowedOrigins.includes("*");
+
+  const corsOrigin =
+    allowAll || !requestOrigin
+      ? "*"
+      : allowedOrigins.includes(requestOrigin)
+        ? requestOrigin
+        : allowedOrigins[0];
+
+  res.setHeader("Access-Control-Allow-Origin", corsOrigin);
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Vary", "Origin");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
@@ -42,6 +62,7 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errorText = await response.text();
+
       return res.status(response.status).json({
         ok: false,
         error: "Instagram API request failed.",
@@ -69,7 +90,10 @@ export default async function handler(req, res) {
       })
       .filter((item) => item.image_url && item.permalink);
 
-    res.setHeader("Cache-Control", "s-maxage=21600, stale-while-revalidate=86400");
+    res.setHeader(
+      "Cache-Control",
+      "s-maxage=21600, stale-while-revalidate=86400"
+    );
 
     return res.status(200).json({
       ok: true,
